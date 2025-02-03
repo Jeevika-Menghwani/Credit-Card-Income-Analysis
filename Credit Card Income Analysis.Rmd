@@ -1,0 +1,229 @@
+
+```{r}
+install.packages("rmarkdown")
+install.packages("AER")
+install.packages("caret")
+install.packages("forecast")
+install.packages("visualize")
+library(caret)
+library(AER)
+library(forecast)
+library(visualize)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r}
+creditcard <- data("CreditCard")
+str(CreditCard)
+```
+# Numeric Variables:age, income, share, expenditure, dependents, months, active,reports, majorcards
+#Continuous: age, income, share, expenditure, dependents, months, active
+#Discrete: reports, majorcards
+#Categorical Variables:card,owner,selfemp
+
+```{r}
+set.seed(880)
+train.index <- sample(c(1:nrow(CreditCard)), nrow(CreditCard)*0.6)
+train.df <- CreditCard[train.index, ]
+valid.df <- CreditCard[-train.index, ]
+```
+
+#partitioning the data before analysis is important because:
+#It allows us to evaluate the model's performance on unseen data, helping to assess its generalization ability and identify overfitting.
+#It helps prevent bias in model evaluation and provides unbiased estimates of model performance.
+#It enables parameter tuning without introducing bias into the evaluation process.
+```{r}
+ggplot(data = train.df, aes(x = dependents, y = income)) +
+  geom_point() +  
+  geom_smooth(method = "lm", se = FALSE) +  
+  labs(x = "Dependents", y = "Income") +  
+  ggtitle("Relationship between Income and Dependents")  
+```
+# This plot suggests a positive relationship between the variables of dependents and income. As the number of dependents increases, there is a corresponding increase in income.The observed relationship between the number of dependents and income intuitively aligns with the notion that as the number of dependents increases, individuals may feel a greater sense of responsibility and motivation to work harder to provide for their families. This could lead to proactive financial planning and investment strategies aimed at securing a better future for their loved ones.
+
+
+```{r}
+
+correlation <- cor(train.df$income, train.df$dependents)
+print(paste("Correlation coefficient:", correlation))
+cor_test <- cor.test(train.df$income, train.df$dependents)
+print(cor_test)
+
+```
+# The correlation coefficient between income and dependents is approximately 0.318.In terms of strength, a correlation coefficient of 0.318 suggests a moderate positive relationship between income and dependents. This means that as the number of dependents increases, income tends to increase as well, but not extremely strongly.Regarding significance, the p-value obtained from the correlation test is less than 2.2e-16, which is very close to zero. This indicates that the correlation between income and dependents is statistically significant. With such a low p-value, we reject the null hypothesis that there is no correlation between the variables.In summary, the correlation between income and dependents is moderate in strength and statistically significant.
+```{r}
+lm_model <- lm(income ~ dependents, data = train.df)
+summary(lm_model)
+```
+
+```{r}
+residuals <- resid(lm_model)
+min_residual <- min(residuals)
+max_residual <- max(residuals)
+index_max_residual <- which.max(residuals)
+index_min_residual <- which.min(residuals)
+actual_income_max <- train.df$income[index_max_residual]
+predicted_income_max <- predict(lm_model)[index_max_residual]
+actual_income_min <- train.df$income[index_min_residual]
+predicted_income_min <- predict(lm_model)[index_min_residual]
+cat("Observation with the highest residual value:\n")
+cat("Actual Income:", actual_income_max, "\n")
+cat("Predicted Income:", predicted_income_max, "\n")
+cat("Residual:", residuals[index_max_residual], "\n\n")
+
+cat("Observation with the lowest residual value:\n")
+cat("Actual Income:", actual_income_min, "\n")
+cat("Predicted Income:", predicted_income_min, "\n")
+cat("Residual:", residuals[index_min_residual], "\n\n")
+```
+#highest residual value:
+#Residual = Actual Income - Predicted Income
+#= 13.5 - 3.807913
+#= 9.692087
+#lowest residual value:
+#Residual = Actual Income - Predicted Income
+#= 1.5 - 4.253304
+#= -2.753304
+
+
+# While the number of dependents can provide valuable insight into an individual's financial responsibilities and potentially influence their income level, it may not be sufficient to perfectly predict their income. Several factors contribute to an individual's income, including education level, occupation, industry, geographic location, work experience, and individual skills. Additionally, external economic factors such as market conditions, inflation rates, and economic policies can impact income levels. Acoording to the data even age, number of cards active and share.Therefore, while dependents can serve as an initial indicator of financial obligations, a comprehensive understanding of an individual's income requires consideration of a broader range of variables. Additionally, personal choices, aspirations, and career trajectories can vary significantly among individuals
+```{r}
+intercept <- coef(lm_model)[1]  
+coefficient_dependents <- coef(lm_model)[2] 
+dependents <- 5
+predicted_income <- intercept + coefficient_dependents * dependents
+print(paste("Predicted income for", dependents, "dependents:", predicted_income))
+```
+#Predicted income for an individual is based on the baseline income (intercept) and the effect of the number of dependents (coefficient of dependents), with a specific value of dependents in this linear regression model.This prediction is achieved by multiplying the coefficient of dependents by the number of dependents and then adding this product to the intercept term. In summary, this equation enables us to estimate the income for an individual based on their number of dependents, as determined by the linear regression model.
+
+```{r}
+accuracy_train <- accuracy(fitted(lm_model), train.df$income)
+cat("Accuracy measures on the training set:\n")
+print(accuracy_train)
+validation_predictions <- predict(lm_model, newdata = valid.df)
+accuracy_validation <- accuracy(validation_predictions, valid.df$income)
+cat("\nAccuracy measures on the validation set:\n")
+print(accuracy_validation)
+
+```
+#Comparing RMSE and MAE between the training and validation sets is important because it helps:
+#Evaluate Model Performance:RMSE and MAE metrics provide insights into how well the model performs on unseen data compared to the training data. This evaluation is crucial for understanding the model's effectiveness in real-world scenarios. In this case, the RMSE and MAE values on the training set are 1.647 and 1.144, respectively, while on the validation set, they are 1.541 and 1.111, indicating the model's performance on both datasets.
+#Detect Overfitting:Discrepancies between RMSE and MAE values on the training and validation sets can signal overfitting. If the model performs significantly better on the training set, it may have memorized the data rather than learning generalizable patterns, leading to poor performance on unseen data.
+#Assess Generalization:Lower RMSE and MAE on the validation set indicate that the model generalizes well to new, unseen data. This assessment is essential for estimating the model's performance in real-world scenarios, where it encounters data it was not trained on.
+#Facilitate Model Comparison and Selection:By comparing RMSE and MAE values across different models or configurations, practitioners can determine which model performs best on unseen data. Models with lower RMSE and MAE on the validation set are preferred as they are expected to provide more accurate predictions in real-world applications.
+
+```{r}
+names(CreditCard)
+numerical_variables <- train.df[, sapply(train.df, is.numeric)]
+correlation_matrix <- cor(numerical_variables)
+highly_correlated_pairs <- which(abs(correlation_matrix) > 0.7 & correlation_matrix != 1, arr.ind = TRUE)
+print(highly_correlated_pairs)
+train.df <- train.df[, !names(train.df) %in% "share"]
+```
+#share has been removed due to its high correlation with expenditure, as identified in the correlation matrix. The decision to remove share was based on the correlation coefficients and the need to mitigate multicollinearity issues, ensuring the model's stability and interpretability.
+
+#Dummy variables, also known as indicator variables, are binary variables created to represent categorical data in statistical analyses. They are used to encode categorical variables into a format that can be included in regression models or other statistical analyses. Each category of the original categorical variable is represented by a separate dummy variable, where a value of 1 indicates the presence of that category, and 0 indicates its absence. Dummy variables allow categorical data to be incorporated into regression models, enabling the model to analyze the effects of categorical variables on the outcome variable.
+```{r}
+initial_model <- lm(income ~ ., data = train.df)
+
+
+backward_model <- step(initial_model, direction = "backward")
+summary(backward_model)
+```
+
+
+```{r}
+mean_income <- mean(train.df$income)
+predicted_income <- predict(backward_model)
+SST <- sum((train.df$income - mean_income)^2)
+SSR <- sum((predicted_income - mean_income)^2)
+cat("Total Sum of Squares (SST):", SST, "\n")
+cat("Sum of Squares Due to Regression (SSR):", SSR, "\n")
+
+```
+#SSR / SST = R square
+#In th summaty its Quoted as multiple R square .i.e 0.2647
+
+```{r}
+predictor <- "dependents"
+t_value <- coef(summary(backward_model))[predictor, "t value"]
+df <- df.residual(backward_model)
+p_value <- 2 * pt(abs(t_value), df = df, lower.tail = FALSE)  # Multiply by 2 for a two-tailed test
+cat("T-value for the predictor", predictor, ":", t_value, "\n")
+cat("P-value for the predictor", predictor, ":", p_value, "\n")
+visualize.t(6.586273, df=783)
+percentage_shaded <- pt(abs(t_value), df = df, lower.tail = FALSE) * 100
+cat("Percentage of the curve shaded:", percentage_shaded, "%\n")
+```
+#The t-value measures the strength of the relationship between the predictor variable (dependents) and the response variable (income) in units of standard deviation. A higher absolute t-value indicates a stronger relationship.
+
+#The p-value indicates the probability of observing a t-value as extreme as the one obtained in the sample, under the assumption that the null hypothesis (no relationship between the predictor and response variables) is true.
+
+#In this Data, the extremely small p-value (close to zero) suggests that the relationship between the predictor "dependents" and the response variable "income" is statistically significant.
+
+#The percentage of the curve shaded represents the area under the t-distribution curve beyond the absolute value of the t-value obtained. Since the p-value is extremely small, the shaded area is negligible, indicating strong evidence against the null hypothesis and in favor of the alternative hypothesis.
+```{r}
+SSE <- sum(residuals(backward_model)^2)
+p <- length(coefficients(backward_model)) - 1
+n <- nrow(train.df)
+F_statistic <- (SSR / p) / (SSE / (n - p - 1))
+cat("F-statistic:", F_statistic, "\n")
+```
+#The F-statistic measures the overall significance of the regression model by comparing the variability explained by the model to the variability not explained by the model. It essentially tests whether the regression model as a whole is statistically significant.
+#variability explained by the mode/variability not explained by the model
+#variability explained by the model -  SSR (sum of squares due to regressio)/ p (number of predictors (excluding the intercept term)).
+#variability not explained by the model - SSE (sum of squared errors (residuals)) / n  (number of observations) - p (number of predictors (excluding the intercept term)).-1 )
+
+
+```{r}
+age <- 35
+reports <- 2
+expenditure <- 1000
+owner <- TRUE  
+selfemp <- TRUE  
+dependants <- 2
+major_cards <- 3
+
+# Coefficients (hypothetical values)
+beta_0 <- 20000
+beta_1 <- 500
+beta_2 <- -1000
+beta_3 <- 0.5
+beta_4 <- 2000
+beta_5 <- -1500
+beta_6 <- 1000
+beta_7 <- 5000
+
+# Calculate the predicted income using the regression equation
+predicted_income <- beta_0 +
+                    beta_1 * age +
+                    beta_2 * reports +
+                    beta_3 * expenditure +
+                    beta_4 * as.numeric(owner) +
+                    beta_5 * as.numeric(selfemp) +
+                    beta_6 * dependants +
+                    beta_7 * major_cards
+
+
+cat("Predicted income for the fictional consumer:", predicted_income, "\n")
+
+```
+
+```{r}
+predicted_train <- predict(backward_model, newdata = train.df)
+accuracy_train <- accuracy(predicted_train, train.df$income)
+print(accuracy_train)
+accuracy_valid <- accuracy(predict(backward_model, newdata = valid.df), valid.df$income)
+
+cat("Accuracy on the training set:\n")
+print(accuracy_train)
+cat("\nAccuracy on the validation set:\n")
+print(accuracy_valid)
+
+
+```
+#The MLR model exhibits consistent performance across both the training and validation sets. On the training set, it shows no bias (ME close to zero) and achieves an RMSE of 1.490 and MAE of 1.036. Similarly, on the validation set, it demonstrates improved performance with a small positive bias (ME = 0.026) and lower error metrics (RMSE = 1.378, MAE = 0.996). Overall, the model maintains relatively low errors and demonstrates reasonable generalization to unseen data, indicating its effectiveness in predicting income.
+#The multiple linear regression (MLR) model exhibits slightly better performance than the simple linear regression (SLR) model in terms of RMSE and MAE on both the training and validation sets. Specifically, the MLR model achieves an RMSE of 1.490 and MAE of 1.036 on the training set, and an RMSE of 1.378 and MAE of 0.996 on the validation set. In comparison, the SLR model shows higher errors with an RMSE of 1.647 and MAE of 1.144 on the training set, and an RMSE of 1.541 and MAE of 1.111 on the validation set. Despite the slight improvement in accuracy from SLR to MLR, the difference is relatively small, suggesting limited benefit from adding more predictors. Both models may suffer from overfitting, as the improvements may stem from capturing noise rather than meaningful relationships. Furthermore, these models may not fully capture all factors influencing income, highlighting potential limitations in predicting income solely based on the available variables.
